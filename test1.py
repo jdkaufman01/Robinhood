@@ -1,8 +1,8 @@
 # temp varss
 
 username = "jdkafuman01"
-password = "WbEgQc2zkP11EgP7vHsQibrTMDgHKVGU"
-mfa_code = "861209"
+password = ""
+mfa_code = ""
 
 stock_ticker = 'HMY'
 shares_to_purchase = 1
@@ -15,8 +15,8 @@ percent_to_replace_stop = .036
 from Robinhood import Robinhood
 my_trader = Robinhood()
 
-mfa_req = my_trader.login(username="jdkaufman01", password="WbEgQc2zkP11EgP7vHsQibrTMDgHKVGU")
-logged_in = my_trader.login(username="jdkaufman01", password="WbEgQc2zkP11EgP7vHsQibrTMDgHKVGU", mfa_code=982172)
+mfa_req = my_trader.login(username=username, password=password)
+logged_in = my_trader.login(username=username, password="", mfa_code=982172)
 
 
 stock_instrument = my_trader.instrument(stock_ticker)
@@ -62,7 +62,7 @@ else:
 
 # Create intial stock loss option
 
-stop_loss_price = cost * (1 - stop_loss_order_percent)
+stop_loss_price = round((cost * (1 - stop_loss_order_percent)), 2)
 
 # USe shares_held_for_buys or quantity?? 
 
@@ -71,19 +71,39 @@ if sec_to_sell['quantity'] < sec_to_sell['shares_held_for_buys']:
     quantity = int(float(sec_to_sell['shares_held_for_buys']))
 else:
     quantity = int(float(sec_to_sell['quantity']))
+# why the fuck doesn't this work!
 
-stop_loss_order = my_trader.place_stop_loss_sell_order('https://api.robinhood.com/instruments/ec0d2e9b-258e-47ba-a91f-9abcfeebcbe9/',symbol='HMY',time_in_force="gtc",stop_price=1.60,quantity=1)
+# stop_loss_order = my_trader.place_stop_loss_sell_order('https://api.robinhood.com/instruments/ec0d2e9b-258e-47ba-a91f-9abcfeebcbe9/',symbol='HMY',time_in_force="gtc",stop_price=1.60,quantity=1)
 
-# email crap
-order = my_trader.submit_order(instrument_URL='https://api.robinhood.com/instruments/ec0d2e9b-258e-47ba-a91f-9abcfeebcbe9/',symbol='HMY',order_type="limit",time_in_force="gtc",trigger='stop',price=1.60,stop_price=1.60,quantity=1,side="sell")
+# stop_loss order from 
+stop_loss_order = my_trader.submit_order(instrument_URL=stock_instrument[0]['url'],symbol=stock_instrument[0]['symbol'],order_type="limit",time_in_force="gtc",trigger='stop',price=stop_loss_price,stop_price=stop_loss_price,quantity=quantity,side="sell").json()
 
+replace_price = round((cost + (cost * percent_to_replace_stop)), 2)
+
+
+while false:
+  if my_trader.get_quote(stock_ticker)['bid_price'] <= replace_price
+    
+ 
+
+
+
+    break
+  time.sleep(5)
+
+while 
+
+canceled_order = my_trader.cancel_order(stop_loss_order.json()['id'])
+
+if canceled_order.ok != True:
+    print("Do something like send an email")
 
 import smtplib, ssl
 
 port = 465  # For SSL
 smtp_server = "smtp.gmail.com"
 
-password = "BlindTiger2013"
+password = ""
 sender_email = "blindtigerlawrenceks@gmail.com"  # Enter your address
 receiver_email = "jesse.kaufman@gmail.com"  # Enter receiver address
 message = """
@@ -104,7 +124,7 @@ server.quit()
 import smtplib
 
 server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-server.login("blindtigerlawrenceks@gmail.com", "BlindTiger2013")
+server.login("blindtigerlawrenceks@gmail.com", "")
 server.sendmail(
   "blindtigerlawrenceks@gmail.com", 
   "jesse.kaufman@gmail.com", 
