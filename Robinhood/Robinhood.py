@@ -1,53 +1,53 @@
-"""Robinhood.py: a collection of utilities for working with Robinhood's Private API """
+``    """Robinhood.py: a collection of utilities for working with Robinhood's Private API """
 
-#Standard libraries
-import logging
-import warnings
+    #Standard libraries
+    import logging
+    import warnings
 
-from enum import Enum
+    from enum import Enum
 
-#External dependencies
-from six.moves.urllib.parse import unquote  # pylint: disable=E0401
-from six.moves.urllib.request import getproxies  # pylint: disable=E0401
-from six.moves import input
+    #External dependencies
+    from six.moves.urllib.parse import unquote  # pylint: disable=E0401
+    from six.moves.urllib.request import getproxies  # pylint: disable=E0401
+    from six.moves import input
 
-import getpass
-import requests
-import six
-import dateutil
+    import getpass
+    import requests
+    import six
+    import dateutil
 
-#Application-specific imports
-import exceptions as RH_exception
-import endpoints
+    #Application-specific imports
+    import builtins as RH_exception
+    import endpoints
 
-class Bounds(Enum):
-    """Enum for bounds in `historicals` endpoint """
+    class Bounds(Enum):
+        """Enum for bounds in `historicals` endpoint """
 
-    REGULAR = 'regular'
-    EXTENDED = 'extended'
-
-
-class Transaction(Enum):
-    """Enum for buy/sell orders """
-
-    BUY = 'buy'
-    SELL = 'sell'
+        REGULAR = 'regular'
+        EXTENDED = 'extended'
 
 
-class Robinhood:
-    """Wrapper class for fetching/parsing Robinhood endpoints """
+    class Transaction(Enum):
+        """Enum for buy/sell orders """
 
-    session = None
-    username = None
-    password = None
-    headers = None
-    auth_token = None
-    refresh_token = None
+        BUY = 'buy'
+        SELL = 'sell'
 
-    logger = logging.getLogger('Robinhood')
-    logger.addHandler(logging.NullHandler())
 
-    client_id = "c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS"
+    class Robinhood:
+        """Wrapper class for fetching/parsing Robinhood endpoints """
+
+        session = None
+        username = None
+        password = None
+        headers = None
+        auth_token = None
+        refresh_token = None
+
+        logger = logging.getLogger('Robinhood')
+        logger.addHandler(logging.NullHandler())
+
+        client_id = "c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS"``
 
 
     ###########################################################################
@@ -84,7 +84,6 @@ class Robinhood:
         password = getpass.getpass()
 
         return self.login(username=username, password=password)
-
 
     def login(self,
               username,
@@ -130,7 +129,6 @@ class Robinhood:
 
         return False
 
-
     def logout(self):
         """Logout from Robinhood
 
@@ -153,7 +151,6 @@ class Robinhood:
         self.auth_token = None
 
         return req
-
 
     ###########################################################################
     #                               GET DATA
@@ -209,7 +206,6 @@ class Robinhood:
             raise RH_exception.InvalidInstrumentId()
 
         return data['results']
-
 
     def quote_data(self, stock=''):
         """Fetch stock quote
