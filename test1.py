@@ -1,10 +1,10 @@
 # temp vars
 
-import pause
+import pause,smtplib,time 
 
 username = "jdkafuman01"
 
-password = " "
+password = ""
 
 mfa_code = ""
 
@@ -16,18 +16,20 @@ stop_loss_order_percent = .0025
 
 percent_to_replace_stop = .036
 
-def calc_stop_loss_price(cost, stop_loss_order_percent)
+def calc_stop_loss_price(cost, stop_loss_order_percent):
     # Create intial stock loss option
     
     stop_loss_price = round((cost * (1 - stop_loss_order_percent)), 2)
 
-    return
+    return stop_loss_price 
 
-def calc_replace_price()
+def calc_replace_price(cost,percent_to_replace_stop):
 
     replace_price = round((cost + (cost * percent_to_replace_stop)), 2)
 
-def get_current_quote_bid_price(stock_instrument,my_trader)
+    return replace_price
+
+def get_current_quote_bid_price(stock_instrument,my_trader):
 
     current_quote_bid_price = float(my_trader.get_quote(stock_instrument['symbol'])['bid_price'])
     
@@ -39,20 +41,15 @@ def send_email(mail_recipient, subject, body):
 	SUBJECT = subject
 	TEXT = body
 
-    import smtplib
-
 	# Prepare actual message
 	message = """From: %s\nTo: %s\nSubject: %s\n\n%s
 	""" % (FROM, ", ".join(TO), SUBJECT, TEXT)
-	try:
-		server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-		server.ehlo()
-		server.login("blindtigerlawrenceks@gmail.com", "")
-		server.sendmail(FROM, TO, message)
-		server.close()
-		return 'successfully sent the mail'
-	except Exception as e:
-		return "failed to send mail" 
+	
+	server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+	server.ehlo()
+	server.login("blindtigerlawrenceks@gmail.com", "")
+	server.sendmail(FROM, TO, message)
+	server.close()
 
 def RH_buy(stock_instrument,shares_to_purchase,my_trader):
 
@@ -72,7 +69,7 @@ def RH_buy(stock_instrument,shares_to_purchase,my_trader):
 
     return buy_order.json() 
 
-def RH_stop_loss_order(stock_instrument,cost,my_trader)
+def RH_stop_loss_order(stock_instrument,cost,my_trader):
     # Ensure stock exits in account 
     # not currently accounting for existing shares owned...
     my_securities = my_trader.securities_owned() 
@@ -86,6 +83,7 @@ def RH_stop_loss_order(stock_instrument,cost,my_trader)
 
     if stock_in_portfolio == True:
         # stock found in portfolio, setting stop limit order 
+        # shares held for buys + quantity 
         # use quantity or shares_held_for_buys... 
           if sec_to_sell['quantity'] < sec_to_sell['shares_held_for_buys']:
               quantity = int(float(sec_to_sell['shares_held_for_buys']))
@@ -102,13 +100,20 @@ def RH_stop_loss_order(stock_instrument,cost,my_trader)
     
     return stop_loss_order
 
-def RH_cancel_order(stop_loss_order,my_trader)
+def RH_cancel_order(stop_loss_order,my_trader):
 
     canceled_order = my_trader.cancel_order(stop_loss_order['id'])
     
     if canceled_order == None:
         send_email("jesse.kaufman@gmail.com","py_RH_stoplimit Failed!",("Cancelindg order {} for {} failed, something fucky happened!").format(stop_loss_order['id'],stock_ticker))
 
+# function that filters vowels
+def filter_order(order_history,order_id):
+    
+    if order_history['id'] == order_id:
+        return True
+    else:
+        return False
 
 # Log IN
 
@@ -117,13 +122,11 @@ my_trader = Robinhood()
 logged_in = None
 
 # why doesn't this piece of shit take str variable?
-logged_in = my_trader.login(username="jdkaufman01", password=" ")
+logged_in = my_trader.login(username=username, password=password)
 if logged_in == None: 
     mfa_code = input('Enter the mfa_code: ')
-    logged_in = my_trader.login(username="jdkaufman01", password=" ", mfa_code=)
+    logged_in = my_trader.login(username="jdkaufman01", password="", mfa_code=652052)
     # need to determine how long the auth is for... 
-
-
 
 # hackityhack because a wild list appears
 if type(my_trader.instrument(stock_ticker)) == list:
@@ -141,22 +144,27 @@ market_hours = my_trader.session.get(market['todays_hours']).json()
 if market_hours['is_open'] == True:
     buy_order = RH_buy(stock_instrument,shares_to_purchase,my_trader)
     stop_loss_price = calc_stop_loss_price(buy_order['price'],stop_loss_order_percent)
-    stop_loss_order = RH_stop_loss_order(stock_instrument,stop_loss_order,my_trader)
+    stop_loss_order = RH_stop_loss_order(stock_instrument,stop_loss_price,my_trader)
     replace_price = calc_replace_price(buy_order['price'],percent_to_replace_stop)
-
-    # get a quote every 5 seconds, compare to replace_price, cancel current stop loss order, create new stop loss order, 
-    while False:
-        current_quote_bid_price = get_current_quote_bid_price(stock_instrument,my_trader)
-    
-    if current_quote_bid_price <= replace_price:
-         print('dont sleep')
-         break
-         print("sleep")
-         RH_cancel_order(stop_loss_order)
-         RH
-    time.sleep(5)
+else:
+    next_open = my_trader.session.get(market_hours['next_open_hours']).json()
+    market_tz = market['timezone']
 
 
 
+# do while stop loss order has not been fufilled.
+while [order for order in (my_trader.order_history()['results']) if order['id'] == stop_loss_order['id'] ][0]['state'] != 'filled':
+# get a quote every 5 seconds, compare to replace_price, cancel current stop loss order, create new stop loss order, 
+    while True:    
+        if get_current_quote_bid_price(stock_instrument,my_trader) <= replace_price:
+            time.sleep(5)
+            print('sleeping...watching...waiting...')
+            if get_current_quote_bid_price(stock_instrument,my_trader) > replace_price:
+                break
+                RH_cancel_order(stop_loss_order,my_trader)
+                stop_loss_price = calc_stop_loss_price(get_current_quote_bid_price(stock_instrument,my_trader), stop_loss_order_percent)
+                stop_loss_order = RH_stop_loss_order(stock_instrument,stop_loss_price_my_trader)
+            # how to cycle back up to the top....
 
 
+my_trader.logout()
