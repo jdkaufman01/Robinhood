@@ -1,10 +1,13 @@
 # temp vars
 
-import pause,smtplib,time 
+import pause,parser,datetime
 
-username = "jdkafuman01"
+from datetime import timezone
 
-password = ""
+
+username = "jdkaufman01"
+
+password = "WbEgQc2zkP11EgP7vHsQibrTMDgHKVGU"
 
 mfa_code = ""
 
@@ -19,7 +22,7 @@ percent_to_replace_stop = .036
 def calc_stop_loss_price(cost, stop_loss_order_percent):
     # Create intial stock loss option
     
-    stop_loss_price = round((cost * (1 - stop_loss_order_percent)), 2)
+    stop_loss_price = round((float(cost) * (1 - stop_loss_order_percent)), 2)
 
     return stop_loss_price 
 
@@ -36,6 +39,9 @@ def get_current_quote_bid_price(stock_instrument,my_trader):
     return current_quote_bid_price
 
 def send_email(mail_recipient, subject, body):
+
+    import smtplib 
+
 	FROM = mail_user
 	TO = mail_recipient if type(mail_recipient) is list else [mail_recipient]
 	SUBJECT = subject
@@ -53,7 +59,7 @@ def send_email(mail_recipient, subject, body):
 
 def RH_buy(stock_instrument,shares_to_purchase,my_trader):
 
-    current_quote_info = my_trader.get_quote(stock_ticker)
+    current_quote_info = my_trader.get_quote(stock_instrument['symbol'])
 
     # check to see if you have funds to cover
     my_account = my_trader.get_account() 
@@ -61,7 +67,7 @@ def RH_buy(stock_instrument,shares_to_purchase,my_trader):
     cost = float(current_quote_info['bid_price']) * float(shares_to_purchase)
     
     # what is buying power??  using cash per my account 
-    if cost <= my_account['cash']:
+    if cost <= float(my_account['cash']):
         # buy stock!
         buy_order = my_trader.place_buy_order(stock_instrument, shares_to_purchase)
     else:
@@ -69,9 +75,9 @@ def RH_buy(stock_instrument,shares_to_purchase,my_trader):
 
     return buy_order.json() 
 
-def RH_stop_loss_order(stock_instrument,cost,my_trader):
+def RH_stop_loss_order(stock_instrument,stop_loss_price,my_trader):
     # Ensure stock exits in account 
-    # not currently accounting for existing shares owned...
+        # not currently accounting for existing shares owned...
     my_securities = my_trader.securities_owned() 
     
     for sec_owned in my_securities['results']:
@@ -80,18 +86,17 @@ def RH_stop_loss_order(stock_instrument,cost,my_trader):
             stock_in_portfolio = True
     
     # currently setting sell order on all of identified security 
-
     if stock_in_portfolio == True:
         # stock found in portfolio, setting stop limit order 
         # shares held for buys + quantity 
         # use quantity or shares_held_for_buys... 
-          if sec_to_sell['quantity'] < sec_to_sell['shares_held_for_buys']:
-              quantity = int(float(sec_to_sell['shares_held_for_buys']))
-          else:
-              quantity = int(float(sec_to_sell['quantity']))    
+        #  if sec_to_sell['quantity'] < sec_to_sell['shares_held_for_buys']:
+        #      quantity = int(float(sec_to_sell['shares_held_for_buys']))
+        #  else:
+        quantity = int(float(sec_to_sell['quantity'])) 
     else: 
         print("stock wasn't found!")
-               
+           
     # why the fuck doesn't this work!
     # stop_loss_order = my_trader.place_stop_loss_sell_order('https://api.robinhood.com/instruments/ec0d2e9b-258e-47ba-a91f-9abcfeebcbe9/',symbol='HMY',time_in_force="gtc",stop_price=1.60,quantity=1)
     
@@ -106,6 +111,13 @@ def RH_cancel_order(stop_loss_order,my_trader):
     
     if canceled_order == None:
         send_email("jesse.kaufman@gmail.com","py_RH_stoplimit Failed!",("Cancelindg order {} for {} failed, something fucky happened!").format(stop_loss_order['id'],stock_ticker))
+
+def RH_get_market_hours(stock_instrument,my_trader):
+
+    market = my_trader.session.get(stock_instrument['market']).json()
+    market_hours = my_trader.session.get(market['todays_hours']).json()
+
+    return market_hours
 
 # function that filters vowels
 def filter_order(order_history,order_id):
@@ -124,9 +136,10 @@ logged_in = None
 # why doesn't this piece of shit take str variable?
 logged_in = my_trader.login(username=username, password=password)
 if logged_in == None: 
-    mfa_code = input('Enter the mfa_code: ')
-    logged_in = my_trader.login(username="jdkaufman01", password="", mfa_code=652052)
-    # need to determine how long the auth is for... 
+    RH_mfa_code = input('Enter the mfa_code: ')
+    logged_in = my_trader.login(username=username, password=password, mfa_code=RH_mfa_code)
+    
+        # need to determine how long the auth is for... 
 
 # hackityhack because a wild list appears
 if type(my_trader.instrument(stock_ticker)) == list:
@@ -136,35 +149,30 @@ else:
 
 # need to expand Robinhood.py to retrieve market data and market hours
 
-market = my_trader.session.get(stock_instrument['market']).json()
-market_hours = my_trader.session.get(market['todays_hours']).json()
 
-# only monitor when the market in question is opn 
-
-if market_hours['is_open'] == True:
-    buy_order = RH_buy(stock_instrument,shares_to_purchase,my_trader)
+next_open = my_trader.session.get(market_hours['next_open_hours']).json()['opens_at']
+open_time_utc = parser.parse(next_open)
+now_utc = datetime.now(timezone.utc)    
+# only monitor when the market in question is open? 
+buy_order = RH_buy(stock_instrument,shares_to_purchase,my_trader)
+while [order for order in (my_trader.order_history()['results']) if order['id'] == buy_order['id'] ][0]['state'] != 'filled':
+    while (parser.parse(RH_get_market_hours(stock_instrument,my_trader)['opens_at']) <=  datetime.now(timezone.utc)):
+        time.sleep(120)
+        print("currently sleeping for two minutes, but should bump up the time to how long the token is valid ")
+else:
     stop_loss_price = calc_stop_loss_price(buy_order['price'],stop_loss_order_percent)
     stop_loss_order = RH_stop_loss_order(stock_instrument,stop_loss_price,my_trader)
     replace_price = calc_replace_price(buy_order['price'],percent_to_replace_stop)
-else:
-    next_open = my_trader.session.get(market_hours['next_open_hours']).json()
-    market_tz = market['timezone']
-
-
-
 # do while stop loss order has not been fufilled.
 while [order for order in (my_trader.order_history()['results']) if order['id'] == stop_loss_order['id'] ][0]['state'] != 'filled':
 # get a quote every 5 seconds, compare to replace_price, cancel current stop loss order, create new stop loss order, 
-    while True:    
-        if get_current_quote_bid_price(stock_instrument,my_trader) <= replace_price:
+    while get_current_quote_bid_price(stock_instrument,my_trader) <= replace_price:
             time.sleep(5)
             print('sleeping...watching...waiting...')
-            if get_current_quote_bid_price(stock_instrument,my_trader) > replace_price:
-                break
-                RH_cancel_order(stop_loss_order,my_trader)
-                stop_loss_price = calc_stop_loss_price(get_current_quote_bid_price(stock_instrument,my_trader), stop_loss_order_percent)
-                stop_loss_order = RH_stop_loss_order(stock_instrument,stop_loss_price_my_trader)
+    else:
+        RH_cancel_order(stop_loss_order,my_trader)
+        stop_loss_price = calc_stop_loss_price(get_current_quote_bid_price(stock_instrument,my_trader), stop_loss_order_percent)
+        stop_loss_order = RH_stop_loss_order(stock_instrument,stop_loss_price_my_trader)
             # how to cycle back up to the top....
-
-
-my_trader.logout()
+else:
+    my_trader.logout()
